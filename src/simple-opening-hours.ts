@@ -1,8 +1,8 @@
 export default class SimpleOpeningHours {
 	/**
-	 * Creates the OpeningHours Object with OSM opening_hours string
+	 * Creates the OpeningHours Object with OpenStreetmap opening_hours string
 	 */
-	constructor(input: string) {
+	constructor(input: string, isPublicHoliday?: (date: Date) => boolean) {
 		this.parse(input);
 	}
 
@@ -18,12 +18,13 @@ export default class SimpleOpeningHours {
 			return this.openingHours
 		}
 		date = date || new Date()
-		const testDay = date.getDay();
+		// if(isPublicHoliday && isPublicHoliday(date)) { TODO }
+		const dateWeekdayIndex = date.getDay();
 		const testTime = date.getHours() + ":" + (date.getMinutes() < 10 ? ("0" + date.getMinutes()) : date.getMinutes())
 		let i = 0;
 		let times: string[];
 		for (let key in this.openingHours) {
-			if (i == testDay) {
+			if (i == dateWeekdayIndex) {
 				times = this.openingHours[key];
 			}
 			i++;
@@ -39,30 +40,42 @@ export default class SimpleOpeningHours {
 		});
 		return isOpen;
 	}
-
+	private init() {
+		this.openingHours = {
+			su: [],
+			mo: [],
+			tu: [],
+			we: [],
+			th: [],
+			fr: [],
+			sa: [],
+			ph: []
+		}
+	}
 	/**
 	 * Parses the input and creates openingHours Object
 	 */
 	private parse(input:string) {
 		if (/24\s*?\/\s*?7/.test(input)) {
 			this.openingHours = this.alwaysOpen = true;
-			return
-		} else if (/\s*off\s*/.test(input)) {
+      return
+		}
+		input = input.toLowerCase()
+		if (/^\s*off\s*$/.test(input)) {
+			//if not ^ then matches also with "mo off; di-so ..."
 			this.openingHours = false
 			this.alwaysClosed = true
 			return
 		}
 		this.init();
-		const parts = input.toLowerCase().replace(/\s*([-:,;])\s*/g, '$1').split(";")
+		const inputCleaned = input.replace(/\s*([-,;])\s*/g, '$1')
+		const parts = inputCleaned.split(";")
 		parts.forEach(part => {
 			this.parseHardPart(part)
 		});
 	}
 
 	private parseHardPart(part: string) {
-		if (part == "24/7") {
-			part = "mo-su 00:00-24:00";
-		}
 		let segments = part.split(/\ |\,/);
 
 		let tempData = {}
@@ -129,18 +142,7 @@ export default class SimpleOpeningHours {
 		return days
 	}
 
-	private init() {
-		this.openingHours = {
-			su: [],
-			mo: [],
-			tu: [],
-			we: [],
-			th: [],
-			fr: [],
-			sa: [],
-			ph: []
-		}
-	}
+
 
 	/**
 	 * Calculates the days in range "mo-we" -> ["mo", "tu", "we"]
@@ -251,10 +253,14 @@ export default class SimpleOpeningHours {
 	}
 
 	private openingHours: Object | boolean
-	private alwaysOpen?: boolean
+	public alwaysOpen?: boolean
+	public unknown?: boolean
 	private alwaysClosed?: boolean
 }
-
+/**
+ * this map wraps
+ * TODO Why starts this on monday and all other weeks on su??
+ */
 export function map<T>(oh: SimpleOpeningHours, callback: (index:number, times: Array<string>)=>T): T[] {
 	const table = oh.getTable()
 	return ["mo", "tu", "we", "th", "fr", "sa", "su"].map((weekday, index) => (

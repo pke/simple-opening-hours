@@ -13,7 +13,7 @@
         /**
          * Creates the OpeningHours Object with OSM opening_hours string
          */
-        function SimpleOpeningHours(input) {
+        function SimpleOpeningHours(input, isPublicHoliday) {
             this.parse(input);
         }
         /**
@@ -28,12 +28,13 @@
                 return this.openingHours;
             }
             date = date || new Date();
-            var testDay = date.getDay();
+            // if(isPublicHoliday && isPublicHoliday(date)) { TODO }
+            var dateWeekdayIndex = date.getDay();
             var testTime = date.getHours() + ":" + (date.getMinutes() < 10 ? ("0" + date.getMinutes()) : date.getMinutes());
             var i = 0;
             var times;
             for (var key in this.openingHours) {
-                if (i == testDay) {
+                if (i == dateWeekdayIndex) {
                     times = this.openingHours[key];
                 }
                 i++;
@@ -58,7 +59,8 @@
                 this.openingHours = this.alwaysOpen = true;
                 return;
             }
-            else if (/\s*off\s*/.test(input)) {
+            else if (/^\s*off\s*$/.test(input)) {
+                //if not ^ then matches also with "mo off; di-so ..."
                 this.openingHours = false;
                 this.alwaysClosed = true;
                 return;
@@ -251,6 +253,9 @@
         return SimpleOpeningHours;
     }());
     exports.default = SimpleOpeningHours;
+    /**
+     * this map wraps
+     */
     function map(oh, callback) {
         var table = oh.getTable();
         return ["mo", "tu", "we", "th", "fr", "sa", "su"].map(function (weekday, index) { return (callback(((index + 1) % 7), table[weekday])); });
