@@ -1,62 +1,90 @@
-export default class SimpleOpeningHours {
+class SimpleOpeningHours {
 	/**
 	 * Creates the OpeningHours Object with OSM opening_hours string
 	 */
-	constructor(input: string) {
-		this.parse(input);
+	constructor(inp: string) {
+		this.parse(inp);
 	}
 
 	/**
 	 * returns the OpeningHours Object
 	 */
 	public getTable() {
-		return typeof this.openingHours === "object" ? this.openingHours : {};
+		return this.openingHours;
 	}
 
-	public isOpen(date?: Date): boolean {
-		if (typeof this.openingHours === "boolean") {
-			return this.openingHours
-		}
-		date = date || new Date()
-		const testDay = date.getDay();
-		const testTime = date.getHours() + ":" + (date.getMinutes() < 10 ? ("0" + date.getMinutes()) : date.getMinutes())
+	/**
+	 * Returns if the OpeningHours match on given Date
+	 */
+	public isOpenOn(date: Date): boolean {
+		let testday = date.getDay();
+		let testtime = date.getHours() + ":" + date.getMinutes()
 		let i = 0;
 		let times: string[];
 		for (let key in this.openingHours) {
-			if (i == testDay) {
+			if (i == testday) {
 				times = this.openingHours[key];
 			}
 			i++;
 		}
 		let isOpen = false
-		times.some(time => {
-			const timeData = time.replace(/\+$/, "-24:00").split("-")
-			if ((this.compareTime(testTime, timeData[0]) != -1)
-				&& (this.compareTime(timeData[1], testTime) != -1)) {
+		times.forEach((time) => {
+			//TODO: times like 09:00+ are not supported here
+			let timedata = time.split('-');
+			if ((this.compareTime(testtime, timedata[0]) != -1)
+				&& (this.compareTime(timedata[1], testtime) != -1)) {
 				isOpen = true;
-				return true;
 			}
 		});
 		return isOpen;
 	}
 
 	/**
+	 * returns if the OpeningHours match now
+	 */
+	public isOpenNow(): boolean {
+		return this.isOpenOn(new Date());
+	}
+
+	/**
 	 * Parses the input and creates openingHours Object
 	 */
-	private parse(input:string) {
-		if (/24\s*?\/\s*?7/.test(input)) {
-			this.openingHours = this.alwaysOpen = true;
-			return
-		} else if (/\s*off\s*/.test(input)) {
-			this.openingHours = false
-			this.alwaysClosed = true
-			return
-		}
-		this.init();
-		const parts = input.toLowerCase().replace(/\s*([-:,;])\s*/g, '$1').split(";")
-		parts.forEach(part => {
+	private parse(inp) {
+		this.initOpeningHoursObj();
+		inp = this.simplify(inp);
+		let parts = this.splitHard(inp);
+		parts.forEach((part) => {
 			this.parseHardPart(part)
 		});
+	}
+
+	private simplify(input: string): string {
+		if (input == "24/7") {
+			input = "mo-su 00:00-24:00; ph 00:00-24:00";
+		}
+		input = input.toLocaleLowerCase();
+		input = input.trim();
+		input = input.replace(/ +(?= )/g, ''); //replace double spaces
+
+		input = input.replace(' -', '-');
+		input = input.replace('- ', '-');
+
+		input = input.replace(' :', ':');
+		input = input.replace(': ', ':');
+
+		input = input.replace(' ,', ',');
+		input = input.replace(', ', ',');
+
+		input = input.replace(' ;', ';');
+		input = input.replace('; ', ';');
+		return input;
+	}
+
+	/**
+	 * Split on ;
+	 */
+	private splitHard(inp: string): string[] {
+		return inp.split(';');
 	}
 
 	private parseHardPart(part: string) {
@@ -87,7 +115,7 @@ export default class SimpleOpeningHours {
 					times = [];
 				}
 			}
-			if (this.isTimeRange(segment)) {
+			if (this.checkTime(segment)) {
 				if (segment == "off") {
 					times = []
 				}
@@ -114,6 +142,7 @@ export default class SimpleOpeningHours {
 	}
 
 	private parseDays(part: string): string[] {
+		part = part.toLowerCase();
 		let days = []
 		let softparts = part.split(',');
 		softparts.forEach((part) => {
@@ -129,7 +158,7 @@ export default class SimpleOpeningHours {
 		return days
 	}
 
-	private init() {
+	private initOpeningHoursObj() {
 		this.openingHours = {
 			su: [],
 			mo: [],
@@ -198,17 +227,17 @@ export default class SimpleOpeningHours {
 	/**
 	 * Check if string is time range
 	 */
-	private isTimeRange(input: string): boolean {
+	private checkTime(inp: string): boolean {
 		//e.g. 09:00+
-		if (input.match(/[0-9]{1,2}:[0-9]{2}\+/)) {
+		if (inp.match(/[0-9]{1,2}:[0-9]{2}\+/)) {
 			return true
 		}
 		//e.g. 08:00-12:00
-		if (input.match(/[0-9]{1,2}:[0-9]{2}\-[0-9]{1,2}:[0-9]{2}/)) {
+		if (inp.match(/[0-9]{1,2}:[0-9]{2}\-[0-9]{1,2}:[0-9]{2}/)) {
 			return true
 		}
 		//off
-		if (input.match(/off/)) {
+		if (inp.match(/off/)) {
 			return true
 		}
 		return false
@@ -217,17 +246,19 @@ export default class SimpleOpeningHours {
 	/**
 	 * check if string is day or dayrange
 	 */
-	private checkDay(input: string): boolean {
+	private checkDay(inp: string): boolean {
 		let days = ["mo", "tu", "we", "th", "fr", "sa", "su", "ph"]
-		if (input.match(/\-/g)) {
-			let rangeElements = input.split('-');
-			if (days.indexOf(rangeElements[0]) !== -1
-				&& days.indexOf(rangeElements[1]) !== -1) {
+		if (inp.match(/\-/g)) {
+			let rangelements = inp.split('-');
+			if (days.indexOf(rangelements[0]) !== -1
+				&& days.indexOf(rangelements[1]) !== -1) {
 				return true
 			}
 		}
-		else if (days.indexOf(input) !== -1) {
-			return true
+		else {
+			if (days.indexOf(inp) !== -1) {
+				return true
+			}
 		}
 		return false
 	}
@@ -239,25 +270,16 @@ export default class SimpleOpeningHours {
 	 * if time1 == time2 -> 0
 	 */
 	private compareTime(time1: string, time2: string) {
-		const date1 = Number(time1.replace(":", ""))
-		const date2 = Number(time2.replace(":", ""))
+		let date1 = new Date('2016-01-01 ' + time1);
+		let date2 = new Date('2016-01-01 ' + time2);
 		if (date1 > date2) {
 			return 1
-		} else if (date1 < date2) {
-			return -1
-		} else {
-			return 0
 		}
+		if (date1 < date2) {
+			return -1
+		}
+		return 0
 	}
 
-	private openingHours: Object | boolean
-	private alwaysOpen?: boolean
-	private alwaysClosed?: boolean
-}
-
-export function map<T>(oh: SimpleOpeningHours, callback: (index:number, times: Array<string>)=>T): T[] {
-	const table = oh.getTable()
-	return ["mo", "tu", "we", "th", "fr", "sa", "su"].map((weekday, index) => (
-		callback(((index + 1) % 7), table[weekday])
-	))
+	private openingHours: Object;
 }
